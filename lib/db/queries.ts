@@ -27,11 +27,12 @@ import { ArtifactKind } from '@/components/artifact';
 const client = postgres(process.env.POSTGRES_URL!);
 const db = drizzle(client);
 
-export async function getUser(email: string): Promise<Array<User>> {
+export async function getUser(email: string): Promise<User | null> {
   try {
-    return await db.select().from(user).where(eq(user.email, email));
+    const [userResult] = await db.select().from(user).where(eq(user.email, email));
+    return userResult || null;
   } catch (error) {
-    console.error('Failed to get user from database');
+    console.error('Failed to get user from database:', error);
     throw error;
   }
 }
@@ -41,9 +42,13 @@ export async function createUser(email: string, password: string) {
   const hash = hashSync(password, salt);
 
   try {
-    return await db.insert(user).values({ email, password: hash });
+    const [newUser] = await db
+      .insert(user)
+      .values({ email, password: hash })
+      .returning({ id: user.id }); // Devuelve el ID del usuario
+    return newUser.id;
   } catch (error) {
-    console.error('Failed to create user in database');
+    console.error('Failed to create user in database:', error);
     throw error;
   }
 }
@@ -151,6 +156,7 @@ export async function getChatsByUserId({
 }
 
 export async function getChatById({ id }: { id: string }) {
+  console.log('Fetching chat with id:', id); // Verifica el valor del id
   try {
     const [selectedChat] = await db.select().from(chat).where(eq(chat.id, id));
     return selectedChat;

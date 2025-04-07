@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useActionState, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AuthForm } from '@/components/auth-form';
 import { SubmitButton } from '@/components/submit-button';
@@ -15,13 +15,13 @@ export default function Page() {
 
   const [email, setEmail] = useState('');
   const [isSuccessful, setIsSuccessful] = useState(false);
+  const [state, setState] = useState<RegisterActionState>({ status: 'idle' });
 
-  const [state, formAction] = useActionState<RegisterActionState, FormData>(
-    register,
-    {
-      status: 'idle',
-    },
-  );
+  const formAction = async (formData: FormData) => {
+    setState({ status: 'in_progress' });
+    const result = await register(formData);
+    setState(result);
+  };
 
   useEffect(() => {
     if (state.status === 'user_exists') {
@@ -37,12 +37,36 @@ export default function Page() {
       toast({ type: 'success', description: 'Account created successfully!' });
 
       setIsSuccessful(true);
-      router.refresh();
+      router.push('/login'); // Redirige al usuario a la página de inicio de sesión
+    } else {
+      toast({
+        type: 'error',
+        description: 'An unexpected error occurred!',
+      });
     }
   }, [state]);
 
   const handleSubmit = (formData: FormData) => {
-    setEmail(formData.get('email') as string);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    if (!email || !password) {
+      toast({
+        type: 'error',
+        description: 'Email and password are required!',
+      });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({
+        type: 'error',
+        description: 'Invalid email format!',
+      });
+      return;
+    }
+
+    setEmail(email);
     formAction(formData);
   };
 
@@ -56,7 +80,12 @@ export default function Page() {
           </p>
         </div>
         <AuthForm action={handleSubmit} defaultEmail={email}>
-          <SubmitButton isSuccessful={isSuccessful}>Sign Up</SubmitButton>
+          <SubmitButton
+            isSuccessful={isSuccessful}
+            disabled={state.status === 'in_progress'}
+          >
+            Sign Up
+          </SubmitButton>
           <p className="text-center text-sm text-gray-600 mt-4 dark:text-zinc-400">
             {'Already have an account? '}
             <Link
